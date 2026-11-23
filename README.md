@@ -10,10 +10,11 @@ Typemetric-JIT is a zero-dependency, C99 systems library that solves polymorphic
 
 ```
 typemetric-jit/
-├── core/              # Standalone C99 engine (Metric k-Center, Bit-Packed Keys, Trace Stitching, Spectral Fourier)
-│   ├── include/       # Public C API (typemetric/typemetric.h, typemetric/spectral.h)
+├── core/              # Standalone C99 engine (Metric k-Center, Bit-Packed Keys, Trace Stitching, Spectral Fourier, Harmonic)
+│   ├── include/       # Public C API (typemetric/typemetric.h, typemetric/spectral.h, typemetric/harmonic.h)
 │   └── src/           # Implementation: metric_space.c, gonzalez.c, short_key.c, trace_stitch.c,
-│                      #                 walsh_hadamard.c, graph_laplacian.c, chebyshev.c, phase_fourier.c
+│                      #                 walsh_hadamard.c, graph_laplacian.c, chebyshev.c, phase_fourier.c,
+│                      #                 harmonic.c
 ├── adapters/          # Target-specific VM integrations
 │   ├── yjit/          # Ruby YJIT Rust FFI adapter (replaces 4-version limit)
 │   ├── cpython/       # CPython 3.13+ Tier 2 micro-op (uop) trace pre-linker
@@ -22,12 +23,16 @@ typemetric-jit/
 │   ├── verify_metric_axioms.py
 │   ├── verify_gonzalez_bound.py
 │   ├── verify_lowering_soundness.py
-│   └── verify_fourier_soundness.py
+│   ├── verify_fourier_soundness.py
+│   └── verify_harmonic_soundness.py
 ├── benchmarks/        # PMU hardware counter harness and Ray distributed fuzzer
 │   ├── perf_counters.c
 │   ├── bench_gc_reaping.c
 │   ├── bench_spectral_logic.c
 │   ├── bench_chebyshev.c
+│   ├── bench_harmonic_lsh.c
+│   └── ray_distributed_fuzzer.py
+└── paper/             # Formal mathematical specification and algorithmic bounds
 │   └── ray_distributed_fuzzer.py
 └── paper/             # Formal mathematical specification and algorithmic bounds
 ```

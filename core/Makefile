@@ -4,7 +4,8 @@ CFLAGS ?= -std=c99 -Wall -Wextra -Werror -pedantic -O3 -fPIC -Iinclude
 LDFLAGS ?=
 
 SRCS := src/metric_space.c src/gonzalez.c src/short_key.c src/trace_stitch.c \
-        src/walsh_hadamard.c src/graph_laplacian.c src/chebyshev.c src/phase_fourier.c
+        src/walsh_hadamard.c src/graph_laplacian.c src/chebyshev.c src/phase_fourier.c \
+        src/harmonic.c
 OBJS := $(SRCS:.c=.o)
 
 LIB_STATIC := libtypemetric.a

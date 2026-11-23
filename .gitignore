@@ -9,3 +9,4 @@ benchmarks/bench_eviction
 benchmarks/bench_gc_reaping
 benchmarks/bench_chebyshev
 benchmarks/bench_spectral_logic
+benchmarks/bench_harmonic_lsh
