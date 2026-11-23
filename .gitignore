@@ -1,0 +1,9 @@
+﻿*.o
+*.a
+*.so
+__pycache__/
+*.pyc
+target/
+build/
+benchmarks/bench_eviction
+benchmarks/bench_gc_reaping
