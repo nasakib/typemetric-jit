@@ -10,9 +10,10 @@ Typemetric-JIT is a zero-dependency, C99 systems library that solves polymorphic
 
 ```
 typemetric-jit/
-├── core/              # Standalone C99 engine (Metric k-Center, Bit-Packed Keys, Trace Stitching)
-│   ├── include/       # Public C API (typemetric/typemetric.h)
-│   └── src/           # Implementation: metric_space.c, gonzalez.c, short_key.c, trace_stitch.c
+├── core/              # Standalone C99 engine (Metric k-Center, Bit-Packed Keys, Trace Stitching, Spectral Fourier)
+│   ├── include/       # Public C API (typemetric/typemetric.h, typemetric/spectral.h)
+│   └── src/           # Implementation: metric_space.c, gonzalez.c, short_key.c, trace_stitch.c,
+│                      #                 walsh_hadamard.c, graph_laplacian.c, chebyshev.c, phase_fourier.c
 ├── adapters/          # Target-specific VM integrations
 │   ├── yjit/          # Ruby YJIT Rust FFI adapter (replaces 4-version limit)
 │   ├── cpython/       # CPython 3.13+ Tier 2 micro-op (uop) trace pre-linker
@@ -20,10 +21,13 @@ typemetric-jit/
 ├── verification/      # Formal SMT verification suite using Microsoft Z3
 │   ├── verify_metric_axioms.py
 │   ├── verify_gonzalez_bound.py
-│   └── verify_lowering_soundness.py
+│   ├── verify_lowering_soundness.py
+│   └── verify_fourier_soundness.py
 ├── benchmarks/        # PMU hardware counter harness and Ray distributed fuzzer
 │   ├── perf_counters.c
 │   ├── bench_gc_reaping.c
+│   ├── bench_spectral_logic.c
+│   ├── bench_chebyshev.c
 │   └── ray_distributed_fuzzer.py
 └── paper/             # Formal mathematical specification and algorithmic bounds
 ```
@@ -47,6 +51,12 @@ Version checking transforms from an indirect memory loop (`memcmp`) into a singl
 ### D. Speculative Trace Stitching
 Pre-links downstream branch targets matching outgoing type inferences directly into contiguous machine code during planning, eliminating cold runtime trampoline exits.
 
+### E. Frequency-Domain Compute & Fourier Spectral Optimization
+- **Walsh-Hadamard Transform (WHT)**: Transforms branchy decision trees into sparse Fourier polynomials, evaluated via SIMD bitwise parity in branchless integer arithmetic (zero CPU pipeline stalls).
+- **Spectral CFG Optimization (Graph Laplacian)**: Computes the Fiedler vector from the Laplacian $L = D - A$ to order basic blocks for minimal jump displacement and near-zero instruction cache misses.
+- **Chebyshev Spectral Function Compression**: Compresses 32 KB discrete lookup tables down to 56 bytes (585x compression) using Chebyshev expansions evaluated via Clenshaw's recurrence in hardware FMA registers.
+- **Phase Detection**: Short-Time Fourier Transform (STFT) on CPU hardware counters to predict execution loop periodicities.
+
 ---
 
 ## 2. Formal Verification (Z3 SMT Solver)
@@ -55,6 +65,7 @@ All mathematical invariants and lowering semantics are formally proven using Mic
 - **Metric Axioms**: Proves non-negativity, identity, symmetry, and triangle inequality across all type triples (0 counterexamples).
 - **Approximation Bound**: Proves the Gonzalez sampling radius $R_{\text{Gonzalez}} \le 2 \cdot R_{\text{OPT}}$ across arbitrary metric spaces.
 - **Lowering Soundness**: Proves bitwise isomorphism between 64-bit scalar key comparisons and sequential `memcmp` across the full $2^{64}$ input space, and proves trap-freedom for 64-bit integer floor division and modulo on x86-64 and RV64GC.
+- **Spectral Soundness**: Proves exact invertibility of the Fast Walsh-Hadamard Transform, Parseval energy conservation on Boolean cubes, and algebraic equivalence of Clenshaw's 3-term recurrence for Chebyshev polynomials.
 
 To run proofs:
 ```bash

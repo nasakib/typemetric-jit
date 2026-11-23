@@ -9,7 +9,8 @@ def main():
     scripts = [
         "verify_metric_axioms.py",
         "verify_gonzalez_bound.py",
-        "verify_lowering_soundness.py"
+        "verify_lowering_soundness.py",
+        "verify_fourier_soundness.py"
     ]
     all_ok = True
     for s in scripts:
