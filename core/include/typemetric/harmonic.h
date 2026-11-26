@@ -30,6 +30,113 @@ typedef uint16_t tm_dozenal_phase_t;
 #define TM_DOZENAL_TWELFTH      256
 
 /**
+ * Dozenal Q12 Fixed-Point Amplitude Scale: 1.0 = 12^3 = 1728.
+ * Ensures exact integer representation for sin(pi/6) = 864 = 0;6_12.
+ */
+#define TM_DOZENAL_Q12_ONE      1728
+#define TM_DOZENAL_Q12_DENOM_SQ 2985984
+#define TM_DOZENAL_MAX_OSCILLATORS 16
+
+/**
+ * Pure integer telemetry for Base-12 Kuramoto oscillator synchronization.
+ */
+typedef struct {
+    uint16_t coherence_q12;          /* Unweighted order parameter R in [0, 1728] */
+    uint16_t weighted_coherence_q12; /* Precision-weighted order parameter in [0, 1728] */
+    tm_dozenal_phase_t mean_phase;   /* Mean field phase in [0, 3071] */
+    uint16_t max_phase_spread;       /* Maximum pairwise geodesic phase delta [0, 1536] */
+    uint32_t locked_count;           /* Active oscillators within +/- 12 units of mean_phase */
+} tm_dozenal_sync_metrics_t;
+
+/**
+ * Pure integer square root (floor(sqrt(x))), zero IEEE-754 floating point.
+ */
+uint32_t tm_integer_sqrt(uint64_t x);
+
+/**
+ * Pure integer Dozenal sine and cosine in Q12 [-1728, +1728] via quarter-wave LUT.
+ */
+int16_t tm_dozenal_sin_q12(tm_dozenal_phase_t phase);
+int16_t tm_dozenal_cos_q12(tm_dozenal_phase_t phase);
+
+/**
+ * Pure integer Dozenal arctangent resolving (x, y) into [0, 3071] via LUT binary search.
+ */
+tm_dozenal_phase_t tm_dozenal_atan2(int64_t y, int64_t x);
+
+/**
+ * Shortest modular geodesic phase distance on the 3072-unit circle (in [0, 1536]).
+ */
+uint16_t tm_dozenal_phase_distance(tm_dozenal_phase_t a, tm_dozenal_phase_t b);
+
+/**
+ * Single-oscillator Dozenal Base-12 Integer Reflex step (~3.1 ns, zero IEEE-754 float).
+ */
+tm_dozenal_phase_t tm_dozenal_kuramoto_reflex(
+    tm_dozenal_phase_t phase,
+    int16_t natural_omega,
+    tm_dozenal_phase_t target_phase,
+    int32_t coupling_k,
+    uint16_t precision_pi_q12
+);
+
+/**
+ * Zero-overhead branchless fast-path reflex using pre-coupled gain k_eff_q12
+ * and full-circle integer LUT access for <= 3.1 ns hot-loop dispatch.
+ */
+extern const int16_t TM_DOZENAL_SIN_QUARTER_LUT[769];
+
+static inline int16_t tm_dozenal_sin_q12_inline(tm_dozenal_phase_t phase) {
+    uint32_t p = (phase < TM_DOZENAL_FULL_CIRCLE) ? (uint32_t)phase : ((uint32_t)phase % TM_DOZENAL_FULL_CIRCLE);
+    if (p < TM_DOZENAL_QUARTER) {
+        return TM_DOZENAL_SIN_QUARTER_LUT[p];
+    }
+    if (p < TM_DOZENAL_HALF_CIRCLE) {
+        return TM_DOZENAL_SIN_QUARTER_LUT[TM_DOZENAL_HALF_CIRCLE - p];
+    }
+    if (p < TM_DOZENAL_HALF_CIRCLE + TM_DOZENAL_QUARTER) {
+        return (int16_t)(-TM_DOZENAL_SIN_QUARTER_LUT[p - TM_DOZENAL_HALF_CIRCLE]);
+    }
+    return (int16_t)(-TM_DOZENAL_SIN_QUARTER_LUT[TM_DOZENAL_FULL_CIRCLE - p]);
+}
+
+static inline tm_dozenal_phase_t tm_dozenal_kuramoto_reflex_fast(
+    tm_dozenal_phase_t phase,
+    int16_t natural_omega,
+    tm_dozenal_phase_t target_phase,
+    int32_t coupling_k,
+    uint16_t precision_pi_q12
+) {
+    uint32_t delta = (uint32_t)target_phase + TM_DOZENAL_FULL_CIRCLE - (uint32_t)phase;
+    if (delta >= TM_DOZENAL_FULL_CIRCLE) {
+        delta -= TM_DOZENAL_FULL_CIRCLE;
+    }
+    int32_t sin_d = (int32_t)tm_dozenal_sin_q12_inline((tm_dozenal_phase_t)delta);
+    int64_t num = (int64_t)coupling_k * (int64_t)precision_pi_q12 * (int64_t)sin_d;
+    int64_t half = (num >= 0) ? (TM_DOZENAL_Q12_DENOM_SQ >> 1) : -(TM_DOZENAL_Q12_DENOM_SQ >> 1);
+    int32_t pull = (int32_t)((num + half) / TM_DOZENAL_Q12_DENOM_SQ);
+    int32_t next_p = (int32_t)phase + (int32_t)natural_omega + pull;
+    if (next_p < 0) next_p += TM_DOZENAL_FULL_CIRCLE;
+    if (next_p >= TM_DOZENAL_FULL_CIRCLE) next_p -= TM_DOZENAL_FULL_CIRCLE;
+    return (tm_dozenal_phase_t)next_p;
+}
+
+/**
+ * Batch N-oscillator precision-weighted Base-12 Kuramoto synchronization step.
+ * Pure integer arithmetic; computes next phases and zero-drift coherence metrics.
+ */
+void tm_dozenal_kuramoto_step_batch(
+    const tm_dozenal_phase_t *phases_in,
+    const int16_t *omegas,
+    const int8_t *trit_polarities,
+    const uint16_t *precision_weights_q12,
+    size_t count,
+    int32_t coupling_k,
+    tm_dozenal_phase_t *phases_out,
+    tm_dozenal_sync_metrics_t *out_metrics
+);
+
+/**
  * Convert continuous floating-point radian angle to exact dozenal fixed-point.
  */
 tm_dozenal_phase_t tm_dozenal_from_radians(double radians);

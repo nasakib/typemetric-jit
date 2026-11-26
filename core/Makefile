@@ -21,7 +21,7 @@ $(LIB_STATIC): $(OBJS)
 $(LIB_SHARED): $(OBJS)
 	$(CC) -shared -o $@ $^ $(LDFLAGS) -lm
 
-%.o: %.c include/typemetric/typemetric.h include/typemetric/spectral.h
+%.o: %.c include/typemetric/typemetric.h include/typemetric/spectral.h include/typemetric/harmonic.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

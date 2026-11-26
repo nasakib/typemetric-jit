@@ -1,9 +1,15 @@
 #include "typemetric/harmonic.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define NUM_VECTORS 1000000
+#define NUM_SYNC_ITERS 10000000
 #define NUM_BUCKETS 1024
 
 /* Standard FNV-1a Hash */
@@ -92,6 +98,49 @@ int main(void) {
     printf("\nDozenal Harmonic Invariant:\n");
     printf("  2*pi / 3 in Dozenal:           %u units (Exact: %s)\n",
            third, (third == TM_DOZENAL_THIRD_CIRCLE) ? "YES (1024 / 3072, zero drift)" : "NO");
+
+    /* ------------------------------------------------------------- */
+    /* Benchmark D: IEEE-754 Float Sync vs Dozenal Integer Reflex    */
+    /* ------------------------------------------------------------- */
+    struct timespec ts0, ts1, ts2, ts3;
+    double fp_phase = 0.0;
+    const double fp_omega = (2.0 * M_PI) / 128.0;
+    const double fp_target = (2.0 * M_PI) / 3.0;
+    clock_gettime(CLOCK_MONOTONIC, &ts0);
+    for (size_t i = 0; i < NUM_SYNC_ITERS; i++) {
+        double p = fp_phase + fp_omega + 0.25 * sin(fp_target - fp_phase);
+        fp_phase = fmod(p, 2.0 * M_PI);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &ts1);
+    double fp_ns = ((double)(ts1.tv_sec - ts0.tv_sec) * 1e9 + (double)(ts1.tv_nsec - ts0.tv_nsec)) / (double)NUM_SYNC_ITERS;
+
+    tm_dozenal_phase_t dz_phase = 0;
+    uint32_t dz_sink = 0;
+    clock_gettime(CLOCK_MONOTONIC, &ts2);
+    for (size_t i = 0; i < NUM_SYNC_ITERS; i++) {
+        dz_phase = tm_dozenal_kuramoto_reflex_fast(dz_phase, 24, TM_DOZENAL_THIRD_CIRCLE, 144, TM_DOZENAL_Q12_ONE);
+        dz_sink += dz_phase;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &ts3);
+    double dz_ns = ((double)(ts3.tv_sec - ts2.tv_sec) * 1e9 + (double)(ts3.tv_nsec - ts2.tv_nsec)) / (double)NUM_SYNC_ITERS;
+
+    /* Batch zero-drift verification over 10,000 ticks */
+    tm_dozenal_phase_t batch_phases[4] = {0, 768, 1536, 2304};
+    const int16_t batch_omegas[4] = {24, 24, 24, 24};
+    const int8_t batch_trits[4] = {1, 1, 1, 1};
+    const uint16_t batch_pi[4] = {1728, 1296, 864, 864};
+    tm_dozenal_phase_t batch_next[4];
+    tm_dozenal_sync_metrics_t metrics = {0};
+    for (int step = 0; step < 10000; step++) {
+        tm_dozenal_kuramoto_step_batch(batch_phases, batch_omegas, batch_trits, batch_pi, 4, 360, batch_next, &metrics);
+        for (int k = 0; k < 4; k++) batch_phases[k] = batch_next[k];
+    }
+
+    printf("\nPhase Synchronization Step (%d ops):\n", NUM_SYNC_ITERS);
+    printf("  IEEE-754 sin/fmod Step:        %.2f ns/op (sink=%.4f)\n", fp_ns, fp_phase);
+    printf("  Dozenal Base-12 Reflex:        %.2f ns/op (sink=%u)\n", dz_ns, (unsigned)(dz_phase + (dz_sink & 1)));
+    printf("  10,000-Tick Batch Sync:        coherence=%u/1728, spread=%u, locked=%u/4\n",
+           (unsigned)metrics.coherence_q12, (unsigned)metrics.max_phase_spread, (unsigned)metrics.locked_count);
     printf("======================================================================\n");
 
     free(vectors);
